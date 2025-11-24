@@ -1,8 +1,22 @@
 # ts-array-joins
 
+[![npm version](https://img.shields.io/npm/v/ts-array-joins.svg)](https://www.npmjs.com/package/ts-array-joins)
+[![npm downloads](https://img.shields.io/npm/dm/ts-array-joins.svg)](https://www.npmjs.com/package/ts-array-joins)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-Una librería TypeScript moderna y fuertemente tipada para agrupar arrays y realizar joins tipo SQL de manera declarativa y eficiente.
+> **Strongly-typed TypeScript utilities for array grouping, SQL-like joins, and data aggregation**
+
+A modern, zero-dependency library for grouping arrays and performing SQL-like joins in TypeScript with full type safety and excellent performance.
+
+## 🔍 Perfect for
+
+- 🗄️ **Database result processing** - Join data from multiple Prisma/TypeORM queries
+- 📊 **Data aggregation** - Group and transform arrays with type safety
+- 🔄 **API response transformation** - Combine related data from multiple endpoints
+- 📈 **Analytics and reporting** - Multi-dimensional data grouping
+- 🎯 **Alternative to Lodash/Ramda** - With better TypeScript support
 
 ## 🎯 Características
 
