@@ -24,6 +24,11 @@ export {
 export { attachChild, type AttachChildParams } from "./joins/attachChild.js";
 
 export {
+  attachChildrenWithFilter,
+  type AttachChildrenWithFilterParams,
+} from "./joins/attachChildrenWithFilter.js";
+
+export {
   joinBySelectors,
   type JoinBySelectorsParams,
 } from "./joins/joinBySelectors.js";
