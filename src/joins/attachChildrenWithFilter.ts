@@ -1,6 +1,11 @@
 import type { WithProperty } from "../types/index.js";
 
 /**
+ * Cardinality for relationships: "one" for single item, "many" for array
+ */
+export type Cardinality = "one" | "many";
+
+/**
  * Configuration for attaching a three-level hierarchy: parents -> middle -> children.
  * This is optimized for cases where you need to filter children based on parent context.
  *
@@ -16,7 +21,9 @@ export interface AttachChildrenWithFilterParams<
   MiddleKey extends keyof TMiddle,
   ChildKey extends keyof TChild,
   MiddlePropName extends PropertyKey,
-  ChildPropName extends PropertyKey
+  ChildPropName extends PropertyKey,
+  MiddleCard extends Cardinality = "many",
+  ChildCard extends Cardinality = "many"
 > {
   /** Array of parent items (top-level) */
   parents: readonly TParent[];
@@ -32,28 +39,49 @@ export interface AttachChildrenWithFilterParams<
   middleKey: MiddleKey;
   /** Property name in child that links to middle */
   childKey: ChildKey;
-  /** Name of the property to add to parents containing middle array */
+  /** Name of the property to add to parents containing middle array/object */
   middleAs: MiddlePropName;
-  /** Name of the property to add to middle items containing children array */
+  /** Name of the property to add to middle items containing children array/object */
   childAs: ChildPropName;
+  /**
+   * Cardinality for middle items: "many" (default) returns array, "one" returns single object or undefined
+   * @default "many"
+   */
+  middleCardinality?: MiddleCard;
+  /**
+   * Cardinality for child items: "many" (default) returns array, "one" returns single object or undefined
+   * @default "many"
+   */
+  childCardinality?: ChildCard;
 }
+
+// Helper types for cardinality resolution
+type CardinalityResult<T, Card extends Cardinality> = Card extends "one"
+  ? T | undefined
+  : T[];
 
 type MiddleWithChildren<
   TMiddle,
   ChildPropName extends PropertyKey,
-  TChild
-> = WithProperty<TMiddle, ChildPropName, TChild[]>;
+  TChild,
+  ChildCard extends Cardinality
+> = WithProperty<TMiddle, ChildPropName, CardinalityResult<TChild, ChildCard>>;
 
 type ParentWithMiddleAndChildren<
   TParent,
   MiddlePropName extends PropertyKey,
   TMiddle,
   ChildPropName extends PropertyKey,
-  TChild
+  TChild,
+  MiddleCard extends Cardinality,
+  ChildCard extends Cardinality
 > = WithProperty<
   TParent,
   MiddlePropName,
-  Array<MiddleWithChildren<TMiddle, ChildPropName, TChild>>
+  CardinalityResult<
+    MiddleWithChildren<TMiddle, ChildPropName, TChild, ChildCard>,
+    MiddleCard
+  >
 >;
 
 /**
@@ -63,6 +91,9 @@ type ParentWithMiddleAndChildren<
  *
  * **Key behavior**: All parents see the SAME middle items (catalog), but each parent
  * only sees their own children within those middle items.
+ *
+ * **Cardinality control**: Use `middleCardinality` and `childCardinality` to control whether
+ * the result is an array (many) or a single object (one).
  *
  * This is perfect for scenarios like:
  * - Enrollments -> PeriodFees (shared catalog) -> EnrollmentPayments (filtered by enrollment)
@@ -81,32 +112,15 @@ type ParentWithMiddleAndChildren<
  * @template ChildKey - Key in child that links to middle
  * @template MiddlePropName - Name of property to add to parents
  * @template ChildPropName - Name of property to add to middle items
+ * @template MiddleCard - Cardinality for middle: "many" (array) or "one" (single object)
+ * @template ChildCard - Cardinality for children: "many" (array) or "one" (single object)
  *
  * @param params - Configuration object
  * @returns Array of parents with middle items (containing filtered children) attached
  *
  * @example
+ * // Default: many-to-many (arrays)
  * ```typescript
- * type Enrollment = { id: number; userId: number; courseName: string };
- * type PeriodFee = { id: number; name: string; amount: number };
- * type Payment = { id: number; enrollmentId: number; feeId: number; paid: boolean };
- *
- * const enrollments: Enrollment[] = [
- *   { id: 1, userId: 100, courseName: "TypeScript" }
- * ];
- *
- * const periodFees: PeriodFee[] = [
- *   { id: 1, name: "Registration", amount: 100 },
- *   { id: 2, name: "Tuition 1", amount: 500 },
- *   { id: 3, name: "Tuition 2", amount: 500 }
- * ];
- *
- * const payments: Payment[] = [
- *   { id: 1, enrollmentId: 1, feeId: 1, paid: true },
- *   { id: 2, enrollmentId: 1, feeId: 2, paid: true }
- *   // Note: feeId 3 has no payment yet
- * ];
- *
  * const result = attachChildrenWithFilter({
  *   parents: enrollments,
  *   middle: periodFees,
@@ -117,19 +131,47 @@ type ParentWithMiddleAndChildren<
  *   childKey: "feeId",
  *   middleAs: "fees",
  *   childAs: "payments"
+ *   // middleCardinality: "many" (default)
+ *   // childCardinality: "many" (default)
  * });
+ * // Result: { fees: Array<{ payments: Payment[] }> }
+ * ```
  *
- * // Result:
- * // [
- * //   {
- * //     id: 1, userId: 100, courseName: "TypeScript",
- * //     fees: [
- * //       { id: 1, name: "Registration", amount: 100, payments: [payment1] },
- * //       { id: 2, name: "Tuition 1", amount: 500, payments: [payment2] },
- * //       { id: 3, name: "Tuition 2", amount: 500, payments: [] }
- * //     ]
- * //   }
- * // ]
+ * @example
+ * // One-to-one: single fee with single payment
+ * ```typescript
+ * const result = attachChildrenWithFilter({
+ *   parents: enrollments,
+ *   middle: periodFees,
+ *   children: payments,
+ *   parentKey: "id",
+ *   childParentKey: "enrollmentId",
+ *   middleKey: "id",
+ *   childKey: "feeId",
+ *   middleAs: "fee",
+ *   childAs: "payment",
+ *   middleCardinality: "one",
+ *   childCardinality: "one"
+ * });
+ * // Result: { fee?: { payment?: Payment } }
+ * ```
+ *
+ * @example
+ * // Many-to-one: multiple fees, each with at most one payment
+ * ```typescript
+ * const result = attachChildrenWithFilter({
+ *   parents: inscripciones,
+ *   middle: cuotasPeriodo,
+ *   children: cuotasInscripcion,
+ *   parentKey: "idInscripcion",
+ *   childParentKey: "idInscripcion",
+ *   middleKey: "idPeriodoCuota",
+ *   childKey: "idPeriodoCuota",
+ *   middleAs: "cuotasPeriodo",
+ *   childAs: "pago",
+ *   childCardinality: "one" // ← Each fee has at most ONE payment
+ * });
+ * // Result: { cuotasPeriodo: Array<{ pago?: CuotaInscripcion }> }
  * ```
  */
 export function attachChildrenWithFilter<
@@ -141,7 +183,9 @@ export function attachChildrenWithFilter<
   MiddleKey extends keyof TMiddle,
   ChildKey extends keyof TChild,
   MiddlePropName extends PropertyKey,
-  ChildPropName extends PropertyKey
+  ChildPropName extends PropertyKey,
+  MiddleCard extends Cardinality = "many",
+  ChildCard extends Cardinality = "many"
 >(
   params: AttachChildrenWithFilterParams<
     TParent,
@@ -152,7 +196,9 @@ export function attachChildrenWithFilter<
     MiddleKey,
     ChildKey,
     MiddlePropName,
-    ChildPropName
+    ChildPropName,
+    MiddleCard,
+    ChildCard
   >
 ): Array<
   ParentWithMiddleAndChildren<
@@ -160,7 +206,9 @@ export function attachChildrenWithFilter<
     MiddlePropName,
     TMiddle,
     ChildPropName,
-    TChild
+    TChild,
+    MiddleCard,
+    ChildCard
   >
 > {
   const {
@@ -173,6 +221,8 @@ export function attachChildrenWithFilter<
     childKey,
     middleAs,
     childAs,
+    middleCardinality = "many" as MiddleCard,
+    childCardinality = "many" as ChildCard,
   } = params;
 
   // Step 1: Create index of children by middleKey - O(c)
@@ -201,21 +251,35 @@ export function attachChildrenWithFilter<
         (child) => (child[childParentKey] as unknown) === parentKeyValue
       );
 
+      // Apply child cardinality
+      const childValue =
+        childCardinality === "one"
+          ? matchingChildren[0] ?? undefined
+          : matchingChildren;
+
       return {
         ...mid,
-        [childAs]: matchingChildren,
-      } as MiddleWithChildren<TMiddle, ChildPropName, TChild>;
+        [childAs]: childValue,
+      } as MiddleWithChildren<TMiddle, ChildPropName, TChild, ChildCard>;
     });
+
+    // Apply middle cardinality
+    const middleValue =
+      middleCardinality === "one"
+        ? middleWithChildren[0] ?? undefined
+        : middleWithChildren;
 
     return {
       ...parent,
-      [middleAs]: middleWithChildren,
+      [middleAs]: middleValue,
     } as ParentWithMiddleAndChildren<
       TParent,
       MiddlePropName,
       TMiddle,
       ChildPropName,
-      TChild
+      TChild,
+      MiddleCard,
+      ChildCard
     >;
   });
 }

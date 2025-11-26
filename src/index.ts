@@ -26,6 +26,7 @@ export { attachChild, type AttachChildParams } from "./joins/attachChild.js";
 export {
   attachChildrenWithFilter,
   type AttachChildrenWithFilterParams,
+  type Cardinality,
 } from "./joins/attachChildrenWithFilter.js";
 
 export {
