@@ -27,6 +27,8 @@ A modern, zero-dependency library for grouping arrays and performing SQL-like jo
 - 📦 **Tree-Shakeable**: Soporte ESM y CJS
 - 🎨 **Composable**: Encadena múltiples operaciones fácilmente
 - 🔑 **Composite Keys**: Joins con claves compuestas (múltiples propiedades)
+- 🔗 **Three-Level Joins**: Join de 3 niveles con patrón catálogo (`attachChildrenWithFilter`)
+- 🎛️ **Cardinality Control**: Controla si quieres arrays o elementos únicos (`"one"` o `"many"`)
 
 ## 📦 Instalación
 
@@ -45,7 +47,7 @@ pnpm add ts-array-joins
 ## 🚀 Inicio Rápido
 
 ```typescript
-import { groupByKey, attachChildren } from "ts-array-joins";
+import { groupByKey, attachChildren, attachChildrenWithFilter } from "ts-array-joins";
 
 // Agrupar arrays
 const users = [
@@ -70,6 +72,30 @@ const usersWithOrders = attachChildren({
   as: "orders",
 });
 // Array<User & { orders: Order[] }>
+
+// Three-level joins (catalog pattern) 🆕
+const enrollments = [{ id: 1, studentName: "Ana" }];
+const periodFees = [
+  { id: 1, name: "Registration", amount: 100 },
+  { id: 2, name: "Tuition", amount: 500 }
+];
+const payments = [
+  { id: 1, enrollmentId: 1, feeId: 1, paid: 100 }
+];
+
+const result = attachChildrenWithFilter({
+  parents: enrollments,
+  middle: periodFees,      // Shared catalog
+  children: payments,       // Filtered by enrollment
+  parentKey: "id",
+  childParentKey: "enrollmentId",
+  middleKey: "id",
+  childKey: "feeId",
+  middleAs: "fees",
+  childAs: "payment",
+  childCardinality: "one"  // Each fee has at most one payment
+});
+// Array<Enrollment & { fees: Array<Fee & { payment?: Payment }> }>
 ```
 
 ## 📚 API Reference
@@ -194,6 +220,146 @@ const result = joinBySelectors({
 - Propiedades con nombres diferentes
 - Claves de join computadas
 - Lógica de matching compleja
+
+#### `attachChildrenWithFilter(params)` - Three-Level Hierarchy with Catalog Pattern
+
+**🆕 Nuevo en v1.1.0**
+
+Realiza joins de 3 niveles donde el array intermedio actúa como un catálogo compartido y los hijos se filtran por cada padre.
+
+```typescript
+type Enrollment = { id: number; courseName: string };
+type PeriodFee = { id: number; name: string; amount: number };
+type Payment = { id: number; enrollmentId: number; feeId: number; paid: number };
+
+const enrollments: Enrollment[] = [
+  { id: 1, courseName: "TypeScript Basics" }
+];
+
+const periodFees: PeriodFee[] = [
+  { id: 1, name: "Registration", amount: 100 },
+  { id: 2, name: "Tuition", amount: 500 },
+  { id: 3, name: "Materials", amount: 50 }
+];
+
+const payments: Payment[] = [
+  { id: 1, enrollmentId: 1, feeId: 1, paid: 100 },
+  { id: 2, enrollmentId: 1, feeId: 2, paid: 500 }
+  // Note: No payment for Materials (feeId: 3)
+];
+
+const result = attachChildrenWithFilter({
+  parents: enrollments,
+  middle: periodFees,        // Shared catalog
+  children: payments,         // Filtered by enrollment
+  parentKey: "id",
+  childParentKey: "enrollmentId",
+  middleKey: "id",
+  childKey: "feeId",
+  middleAs: "fees",
+  childAs: "payments"
+});
+
+// Result: Array<Enrollment & { 
+//   fees: Array<PeriodFee & { 
+//     payments: Payment[] 
+//   }> 
+// }>
+
+// Enrollment 1 sees ALL fees (catalog), but only its own payments:
+// {
+//   id: 1,
+//   courseName: "TypeScript Basics",
+//   fees: [
+//     { id: 1, name: "Registration", amount: 100, payments: [payment1] },
+//     { id: 2, name: "Tuition", amount: 500, payments: [payment2] },
+//     { id: 3, name: "Materials", amount: 50, payments: [] }  // ← No payment yet
+//   ]
+// }
+```
+
+**🎯 Cardinality Control**
+
+Controla si quieres arrays o elementos únicos con `middleCardinality` y `childCardinality`:
+
+```typescript
+// Default: many-to-many (arrays)
+const result1 = attachChildrenWithFilter({
+  parents: enrollments,
+  middle: periodFees,
+  children: payments,
+  parentKey: "id",
+  childParentKey: "enrollmentId",
+  middleKey: "id",
+  childKey: "feeId",
+  middleAs: "fees",
+  childAs: "payments"
+  // middleCardinality: "many" (default)
+  // childCardinality: "many" (default)
+});
+// Type: { fees: Array<{ payments: Payment[] }> }
+
+// many-to-one: Each fee has at most ONE payment
+const result2 = attachChildrenWithFilter({
+  parents: enrollments,
+  middle: periodFees,
+  children: payments,
+  parentKey: "id",
+  childParentKey: "enrollmentId",
+  middleKey: "id",
+  childKey: "feeId",
+  middleAs: "fees",
+  childAs: "payment",        // ← Singular
+  childCardinality: "one"    // ← Returns single object or undefined
+});
+// Type: { fees: Array<{ payment?: Payment }> }
+
+// one-to-many: Enrollment has ONE category with MANY items
+const result3 = attachChildrenWithFilter({
+  parents: users,
+  middle: categories,
+  children: items,
+  parentKey: "id",
+  childParentKey: "userId",
+  middleKey: "id",
+  childKey: "categoryId",
+  middleAs: "category",      // ← Singular
+  childAs: "items",
+  middleCardinality: "one"   // ← Returns single object or undefined
+});
+// Type: { category?: { items: Item[] } }
+
+// one-to-one: Both singular
+const result4 = attachChildrenWithFilter({
+  parents: orders,
+  middle: shippingInfo,
+  children: trackings,
+  parentKey: "id",
+  childParentKey: "orderId",
+  middleKey: "id",
+  childKey: "shippingId",
+  middleAs: "shipping",       // ← Singular
+  childAs: "tracking",        // ← Singular
+  middleCardinality: "one",
+  childCardinality: "one"
+});
+// Type: { shipping?: { tracking?: Tracking } }
+```
+
+**Características:**
+
+- **Catálogo compartido**: Todos los padres ven los mismos items del `middle`
+- **Filtrado eficiente**: Los hijos se filtran automáticamente por padre
+- **Complejidad**: O(p × m + c) donde p=parents, m=middle, c=children
+- **Control de cardinalidad**: `"one"` o `"many"` para `middle` y `children`
+- **Type-safe**: Inferencia completa de tipos según cardinalidad
+
+**Casos de uso perfectos:**
+
+- 📚 **Cursos → Cuotas del periodo → Pagos por inscripción**
+- 🛒 **Usuarios → Productos (catálogo) → Compras del usuario**
+- 📦 **Órdenes → Items disponibles → Items de la orden**
+- 🏥 **Pacientes → Tratamientos (catálogo) → Citas del paciente**
 
 ## 🔑 Claves Compuestas (Composite Keys)
 
@@ -436,6 +602,106 @@ async function getUsersWithRelations() {
     as: "primaryAddress",
   });
 }
+```
+
+## 🧭 ¿Qué Función Usar?
+
+### Guía Rápida de Selección
+
+```typescript
+// ✅ Usa attachChildren / attachChild
+// Cuando: Relación directa parent → children (2 niveles)
+const usersWithOrders = attachChildren({
+  parents: users,
+  children: orders,
+  parentKey: "id",
+  childKey: "userId",
+  as: "orders"
+});
+
+// ✅ Usa attachChildrenWithFilter
+// Cuando: Relación parent → catalog → filtered children (3 niveles)
+// El array "middle" es compartido por todos los parents
+const enrollmentsWithFees = attachChildrenWithFilter({
+  parents: enrollments,       // Inscripciones
+  middle: periodFees,         // Catálogo de cuotas (shared)
+  children: payments,         // Pagos filtrados por inscripción
+  parentKey: "id",
+  childParentKey: "enrollmentId",
+  middleKey: "id",
+  childKey: "feeId",
+  middleAs: "fees",
+  childAs: "payment",
+  childCardinality: "one"     // Cada cuota tiene max 1 pago
+});
+
+// ✅ Usa attachChildrenNested / attachChildComposite
+// Cuando: Claves compuestas (múltiples propiedades)
+const productsWithInventory = attachChildrenNested({
+  parents: products,
+  children: inventory,
+  parentKeys: ["sku", "origin"],
+  childKeys: ["sku", "origin"],
+  as: "stock"
+});
+```
+
+### Comparativa Detallada
+
+| Función | Niveles | Catálogo Compartido | Cardinalidad | Claves Compuestas |
+|---------|---------|---------------------|--------------|-------------------|
+| `attachChildren` | 2 | ❌ | many | ❌ |
+| `attachChild` | 2 | ❌ | one | ❌ |
+| `attachChildrenWithFilter` | 3 | ✅ | configurable | ❌ |
+| `attachChildrenNested` | 2 | ❌ | many | ✅ |
+| `attachChildNested` | 2 | ❌ | one | ✅ |
+| `attachChildrenComposite` | 2 | ❌ | many | ✅ |
+| `attachChildComposite` | 2 | ❌ | one | ✅ |
+
+### Casos de Uso Típicos
+
+**📚 Educación/Cursos:**
+```typescript
+// Inscripciones → Cuotas del periodo (catálogo) → Pagos
+attachChildrenWithFilter({
+  parents: enrollments,
+  middle: periodFees,      // Todas las inscripciones ven las mismas cuotas
+  children: payments,       // Pero solo sus propios pagos
+  childCardinality: "one"  // Max 1 pago por cuota
+});
+```
+
+**🛒 E-commerce:**
+```typescript
+// Usuarios → Productos (catálogo) → Compras del usuario
+attachChildrenWithFilter({
+  parents: users,
+  middle: products,        // Todos ven el mismo catálogo
+  children: purchases,      // Pero solo sus propias compras
+  middleCardinality: "many"
+});
+```
+
+**🏥 Salud:**
+```typescript
+// Pacientes → Tratamientos (catálogo) → Citas del paciente
+attachChildrenWithFilter({
+  parents: patients,
+  middle: treatments,      // Todos los tratamientos disponibles
+  children: appointments,   // Citas específicas del paciente
+  childCardinality: "many"
+});
+```
+
+**📦 Inventario Multi-región:**
+```typescript
+// Productos con clave compuesta [sku, region]
+attachChildrenNested({
+  parents: products,
+  children: stock,
+  parentKeys: ["sku", "region"],
+  childKeys: ["sku", "region"]
+});
 ```
 
 ## ⚡ Consideraciones de Performance
