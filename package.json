@@ -1,6 +1,6 @@
 {
     "name": "ts-array-joins",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "Strongly-typed TypeScript utilities for array grouping, SQL-like joins, and data aggregation. Zero dependencies, full type inference, O(n+m) performance.",
     "type": "module",
     "main": "./dist/index.cjs",
