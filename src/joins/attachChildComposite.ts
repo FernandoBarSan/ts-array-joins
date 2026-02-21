@@ -1,5 +1,6 @@
 import type { WithProperty } from "../types/index.js";
 import { makeCompositeKeyExtractor } from "../utils/compositeKey.js";
+import { indexOne } from "../utils/indexBy.js";
 
 /**
  * Configuration for attaching a single child using composite keys.
@@ -9,7 +10,7 @@ export interface AttachChildCompositeParams<
   TChild,
   ParentKeys extends ReadonlyArray<keyof TParent>,
   ChildKeys extends ReadonlyArray<keyof TChild>,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 > {
   /** Array of parent items */
   parents: readonly TParent[];
@@ -67,15 +68,9 @@ export function attachChildComposite<
   TChild,
   ParentKeys extends ReadonlyArray<keyof TParent>,
   ChildKeys extends ReadonlyArray<keyof TChild>,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 >(
-  params: AttachChildCompositeParams<
-    TParent,
-    TChild,
-    ParentKeys,
-    ChildKeys,
-    PropName
-  >
+  params: AttachChildCompositeParams<TParent, TChild, ParentKeys, ChildKeys, PropName>,
 ): Array<WithProperty<TParent, PropName, TChild | null>> {
   const { parents, children, parentKeys, childKeys, as } = params;
 
@@ -84,16 +79,7 @@ export function attachChildComposite<
   const childKeyExtractor = makeCompositeKeyExtractor<TChild>(childKeys);
 
   // Build index of children by composite key (first match only)
-  const childByKey = new Map<string, TChild>();
-
-  for (const child of children) {
-    const key = childKeyExtractor(child);
-
-    // Only set if not already present (first match wins)
-    if (!childByKey.has(key)) {
-      childByKey.set(key, child);
-    }
-  }
+  const childByKey = indexOne(children, childKeyExtractor);
 
   // Attach child to each parent
   return parents.map((parent) => {

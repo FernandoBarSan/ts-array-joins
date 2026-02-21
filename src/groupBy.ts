@@ -28,7 +28,7 @@ import { makeCompositeKeyExtractor } from "./utils/compositeKey.js";
  */
 export function groupBy<T, K extends PropertyKey>(
   items: readonly T[],
-  keySelector: (item: T) => K
+  keySelector: (item: T) => K,
 ): Record<K, T[]> {
   const result = {} as Record<K, T[]>;
 
@@ -70,7 +70,7 @@ export function groupBy<T, K extends PropertyKey>(
  */
 export function groupByKey<T, K extends keyof T>(
   items: readonly T[],
-  key: K
+  key: K,
 ): T[K] extends PropertyKey ? Record<PropertyKeyValue<T[K]>, T[]> : never {
   const result = {} as Record<PropertyKeyValue<T[K]>, T[]>;
 
@@ -82,9 +82,7 @@ export function groupByKey<T, K extends keyof T>(
     result[groupKey].push(item);
   }
 
-  return result as T[K] extends PropertyKey
-    ? Record<PropertyKeyValue<T[K]>, T[]>
-    : never;
+  return result as T[K] extends PropertyKey ? Record<PropertyKeyValue<T[K]>, T[]> : never;
 }
 
 /**
@@ -116,7 +114,7 @@ export function groupByKey<T, K extends keyof T>(
  */
 export function groupByMany<T, Keys extends readonly (keyof T)[]>(
   items: readonly T[],
-  keys: Keys
+  keys: Keys,
 ): NestedGroupResult<T, Keys> {
   if (keys.length === 0) {
     return items as unknown as NestedGroupResult<T, Keys>;
@@ -135,7 +133,7 @@ export function groupByMany<T, Keys extends readonly (keyof T)[]>(
   for (const [groupKey, groupItems] of Object.entries(firstLevelGroups)) {
     result[groupKey] = groupByMany(
       groupItems as readonly T[],
-      restKeys as unknown as readonly (keyof T)[]
+      restKeys as unknown as readonly (keyof T)[],
     );
   }
 
@@ -175,7 +173,7 @@ export function groupByMany<T, Keys extends readonly (keyof T)[]>(
 export function groupByTransform<T, K extends PropertyKey, R>(
   items: readonly T[],
   keySelector: (item: T) => K,
-  valueTransform: (group: T[]) => R
+  valueTransform: (group: T[]) => R,
 ): Record<K, R> {
   const grouped = groupBy(items, keySelector);
   const result = {} as Record<K, R>;
@@ -217,7 +215,7 @@ export function groupByTransform<T, K extends PropertyKey, R>(
  */
 export function groupByComposite<T>(
   items: readonly T[],
-  keys: ReadonlyArray<keyof T>
+  keys: ReadonlyArray<keyof T>,
 ): Record<string, T[]> {
   const keyExtractor = makeCompositeKeyExtractor<T>(keys);
   return groupBy(items, keyExtractor);

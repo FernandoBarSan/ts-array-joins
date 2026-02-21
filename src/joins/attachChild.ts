@@ -1,4 +1,5 @@
 import type { WithProperty } from "../types/index.js";
+import { indexOne } from "../utils/indexBy.js";
 
 /**
  * Configuration for attaching a single child to parent items (one-to-one relationship).
@@ -8,7 +9,7 @@ export interface AttachChildParams<
   TChild,
   ParentKey extends keyof TParent,
   ChildKey extends keyof TChild,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 > {
   /** Array of parent items */
   parents: readonly TParent[];
@@ -72,24 +73,14 @@ export function attachChild<
   TChild,
   ParentKey extends keyof TParent,
   ChildKey extends keyof TChild,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 >(
-  params: AttachChildParams<TParent, TChild, ParentKey, ChildKey, PropName>
+  params: AttachChildParams<TParent, TChild, ParentKey, ChildKey, PropName>,
 ): Array<WithProperty<TParent, PropName, TChild | null>> {
   const { parents, children, parentKey, childKey, as } = params;
 
-  // Create index of children by the child key for O(1) lookup
-  // Only store the first match for each key
-  const childByKey = new Map<unknown, TChild>();
-
-  for (const child of children) {
-    const key = child[childKey];
-
-    // Only set if not already present (first match wins)
-    if (!childByKey.has(key)) {
-      childByKey.set(key, child);
-    }
-  }
+  // Create index of children by the child key for O(1) lookup (first match wins)
+  const childByKey = indexOne(children, (c) => c[childKey] as unknown);
 
   // Attach child to each parent
   return parents.map((parent) => {

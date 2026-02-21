@@ -7,10 +7,7 @@
  * @param keys - Array of property names to group by (in order)
  * @returns Nested record structure
  */
-export function createNestedGroups<T>(
-  items: readonly T[],
-  keys: ReadonlyArray<keyof T>
-): any {
+export function createNestedGroups<T>(items: readonly T[], keys: ReadonlyArray<keyof T>): any {
   if (keys.length === 0) {
     return items;
   }
@@ -59,10 +56,7 @@ export function createNestedGroups<T>(
  * @param path - Array of key values to navigate the structure
  * @returns Array of items at that path, or empty array if not found
  */
-export function getFromNestedGroups<T>(
-  nestedGroups: any,
-  path: readonly unknown[]
-): T[] {
+export function getFromNestedGroups<T>(nestedGroups: any, path: readonly unknown[]): T[] {
   if (path.length === 0) {
     return Array.isArray(nestedGroups) ? nestedGroups : [];
   }

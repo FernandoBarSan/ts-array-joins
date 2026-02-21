@@ -1,4 +1,5 @@
 import type { WithProperty } from "../types/index.js";
+import { indexMany, indexOne } from "../utils/indexBy.js";
 
 /**
  * Configuration for joining arrays using selector functions instead of property keys.
@@ -7,7 +8,7 @@ export interface JoinBySelectorsParams<
   TParent,
   TChild,
   K extends PropertyKey,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 > {
   /** Array of parent items */
   parents: readonly TParent[];
@@ -67,44 +68,32 @@ export function joinBySelectors<
   TParent,
   TChild,
   K extends PropertyKey,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 >(
-  params: JoinBySelectorsParams<TParent, TChild, K, PropName> & { mode: "many" }
+  params: JoinBySelectorsParams<TParent, TChild, K, PropName> & { mode: "many" },
 ): Array<WithProperty<TParent, PropName, TChild[]>>;
 
 export function joinBySelectors<
   TParent,
   TChild,
   K extends PropertyKey,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 >(
-  params: JoinBySelectorsParams<TParent, TChild, K, PropName> & { mode: "one" }
+  params: JoinBySelectorsParams<TParent, TChild, K, PropName> & { mode: "one" },
 ): Array<WithProperty<TParent, PropName, TChild | null>>;
 
 export function joinBySelectors<
   TParent,
   TChild,
   K extends PropertyKey,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 >(
-  params: JoinBySelectorsParams<TParent, TChild, K, PropName>
+  params: JoinBySelectorsParams<TParent, TChild, K, PropName>,
 ): Array<WithProperty<TParent, PropName, TChild[] | TChild | null>> {
   const { parents, children, parentSelector, childSelector, as, mode } = params;
 
   if (mode === "many") {
-    // Build index for one-to-many
-    const childrenByKey = new Map<K, TChild[]>();
-
-    for (const child of children) {
-      const key = childSelector(child);
-      const existing = childrenByKey.get(key);
-
-      if (existing) {
-        existing.push(child);
-      } else {
-        childrenByKey.set(key, [child]);
-      }
-    }
+    const childrenByKey = indexMany(children, childSelector);
 
     return parents.map((parent) => {
       const key = parentSelector(parent);
@@ -115,26 +104,16 @@ export function joinBySelectors<
         [as]: matchingChildren,
       } as WithProperty<TParent, PropName, TChild[]>;
     });
-  } else {
-    // Build index for one-to-one
-    const childByKey = new Map<K, TChild>();
-
-    for (const child of children) {
-      const key = childSelector(child);
-
-      if (!childByKey.has(key)) {
-        childByKey.set(key, child);
-      }
-    }
-
-    return parents.map((parent) => {
-      const key = parentSelector(parent);
-      const matchingChild = childByKey.get(key) ?? null;
-
-      return {
-        ...parent,
-        [as]: matchingChild,
-      } as WithProperty<TParent, PropName, TChild | null>;
-    });
   }
+  const childByKey = indexOne(children, childSelector);
+
+  return parents.map((parent) => {
+    const key = parentSelector(parent);
+    const matchingChild = childByKey.get(key) ?? null;
+
+    return {
+      ...parent,
+      [as]: matchingChild,
+    } as WithProperty<TParent, PropName, TChild | null>;
+  });
 }

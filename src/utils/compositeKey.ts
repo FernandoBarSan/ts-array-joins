@@ -32,9 +32,7 @@ export function createCompositeKey(values: unknown[]): string {
  * // Returns: "SKU-A||~~||origin1"
  * ```
  */
-export function makeCompositeKeyExtractor<T>(
-  keys: ReadonlyArray<keyof T>
-): (item: T) => string {
+export function makeCompositeKeyExtractor<T>(keys: ReadonlyArray<keyof T>): (item: T) => string {
   return (item: T) => {
     const values = keys.map((key) => item[key]);
     return createCompositeKey(values);
@@ -58,10 +56,7 @@ export function makeCompositeKeyExtractor<T>(
  * // Returns: "SKU-A||~~||origin1"
  * ```
  */
-export function getCompositeKey<T>(
-  item: T,
-  keys: ReadonlyArray<keyof T>
-): string {
+export function getCompositeKey<T>(item: T, keys: ReadonlyArray<keyof T>): string {
   const values = keys.map((key) => item[key]);
   return createCompositeKey(values);
 }

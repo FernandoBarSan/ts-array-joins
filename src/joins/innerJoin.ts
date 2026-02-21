@@ -2,9 +2,9 @@ import type { WithProperty } from "../types/index.js";
 import { indexMany } from "../utils/indexBy.js";
 
 /**
- * Configuration for attaching children to parent items (one-to-many relationship).
+ * Configuration for inner join (only parents with matching children).
  */
-export interface AttachChildrenParams<
+export interface InnerJoinParams<
   TParent,
   TChild,
   ParentKey extends keyof TParent,
@@ -13,7 +13,7 @@ export interface AttachChildrenParams<
 > {
   /** Array of parent items */
   parents: readonly TParent[];
-  /** Array of child items to attach */
+  /** Array of child items */
   children: readonly TChild[];
   /** Property name in parent that contains the joining key */
   parentKey: ParentKey;
@@ -24,9 +24,8 @@ export interface AttachChildrenParams<
 }
 
 /**
- * Attaches child items to parent items based on matching keys (one-to-many join).
- * Each parent will have a new property containing an array of matching children.
- * Parents without children will have an empty array.
+ * Inner join: only returns parents that have at least one matching child.
+ * Parents without matching children are excluded from the result.
  *
  * Time complexity: O(n + m) where n = parents.length, m = children.length
  *
@@ -37,7 +36,7 @@ export interface AttachChildrenParams<
  * @template PropName - Name of the property to add to parents
  *
  * @param params - Configuration object
- * @returns New array of parents with children attached
+ * @returns Array of parents (with children) that had at least one match
  *
  * @example
  * ```typescript
@@ -46,16 +45,16 @@ export interface AttachChildrenParams<
  *
  * const users: User[] = [
  *   { id: 1, name: "Ana" },
- *   { id: 2, name: "Juan" }
+ *   { id: 2, name: "Juan" },
+ *   { id: 3, name: "Luis" }  // no orders
  * ];
  *
  * const orders: Order[] = [
  *   { id: 101, userId: 1, total: 50 },
- *   { id: 102, userId: 1, total: 100 },
- *   { id: 103, userId: 2, total: 75 }
+ *   { id: 102, userId: 2, total: 75 }
  * ];
  *
- * const result = attachChildren({
+ * const result = innerJoin({
  *   parents: users,
  *   children: orders,
  *   parentKey: "id",
@@ -63,35 +62,38 @@ export interface AttachChildrenParams<
  *   as: "orders"
  * });
  *
- * // Result type: Array<User & { orders: Order[] }>
+ * // Result: only Ana and Juan (Luis excluded - no orders)
  * // [
- * //   { id: 1, name: "Ana", orders: [order101, order102] },
- * //   { id: 2, name: "Juan", orders: [order103] }
+ * //   { id: 1, name: "Ana", orders: [{ id: 101, userId: 1, total: 50 }] },
+ * //   { id: 2, name: "Juan", orders: [{ id: 102, userId: 2, total: 75 }] }
  * // ]
  * ```
  */
-export function attachChildren<
+export function innerJoin<
   TParent,
   TChild,
   ParentKey extends keyof TParent,
   ChildKey extends keyof TChild,
   PropName extends PropertyKey,
 >(
-  params: AttachChildrenParams<TParent, TChild, ParentKey, ChildKey, PropName>,
+  params: InnerJoinParams<TParent, TChild, ParentKey, ChildKey, PropName>,
 ): Array<WithProperty<TParent, PropName, TChild[]>> {
   const { parents, children, parentKey, childKey, as } = params;
 
-  // Create index of children by the child key for O(1) lookup
   const childrenByKey = indexMany(children, (c) => c[childKey] as unknown);
 
-  // Attach children to each parent
-  return parents.map((parent) => {
-    const parentKeyValue = parent[parentKey];
-    const matchingChildren = childrenByKey.get(parentKeyValue) ?? [];
+  const result: Array<WithProperty<TParent, PropName, TChild[]>> = [];
 
-    return {
-      ...parent,
-      [as]: matchingChildren,
-    } as WithProperty<TParent, PropName, TChild[]>;
-  });
+  for (const parent of parents) {
+    const matching = childrenByKey.get(parent[parentKey] as unknown);
+
+    if (matching && matching.length > 0) {
+      result.push({
+        ...parent,
+        [as]: matching,
+      } as WithProperty<TParent, PropName, TChild[]>);
+    }
+  }
+
+  return result;
 }

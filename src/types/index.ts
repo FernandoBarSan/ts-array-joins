@@ -12,10 +12,10 @@ export type PropertyKeyValue<T> = T extends PropertyKey ? T : never;
  * Type for nested grouping result
  * When grouping by multiple keys, creates nested Record structures
  */
-export type NestedGroupResult<
-  T,
-  Keys extends readonly PropertyKey[]
-> = Keys extends readonly [infer First, ...infer Rest]
+export type NestedGroupResult<T, Keys extends readonly PropertyKey[]> = Keys extends readonly [
+  infer First,
+  ...infer Rest,
+]
   ? First extends keyof T
     ? Rest extends readonly PropertyKey[]
       ? Rest["length"] extends 0

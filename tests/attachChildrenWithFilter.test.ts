@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { attachChildrenWithFilter } from "../src/joins/attachChildrenWithFilter.js";
 
 describe("attachChildrenWithFilter", () => {
@@ -108,9 +108,7 @@ describe("attachChildrenWithFilter", () => {
 
       const middle: Middle[] = [{ id: 10, parentId: 1, value: "Middle1" }];
 
-      const children: Child[] = [
-        { id: 100, middleId: 10, parentId: 1, data: "Child1" },
-      ];
+      const children: Child[] = [{ id: 100, middleId: 10, parentId: 1, data: "Child1" }];
 
       const result = attachChildrenWithFilter({
         parents,
@@ -152,9 +150,7 @@ describe("attachChildrenWithFilter", () => {
         { id: 20, parentId: 1, value: "Middle2" },
       ];
 
-      const children: Child[] = [
-        { id: 100, middleId: 10, parentId: 1, data: "Child1" },
-      ];
+      const children: Child[] = [{ id: 100, middleId: 10, parentId: 1, data: "Child1" }];
 
       const result = attachChildrenWithFilter({
         parents,
@@ -192,9 +188,7 @@ describe("attachChildrenWithFilter", () => {
 
       const parents: Parent[] = [{ id: 1, name: "Parent1" }];
       const middle: Middle[] = [{ id: 10, value: "Middle1" }];
-      const children: Child[] = [
-        { id: 100, middleId: 10, parentId: 1, data: "Child1" },
-      ];
+      const children: Child[] = [{ id: 100, middleId: 10, parentId: 1, data: "Child1" }];
 
       const result = attachChildrenWithFilter({
         parents,
@@ -209,8 +203,7 @@ describe("attachChildrenWithFilter", () => {
       });
 
       // Type assertions to verify TypeScript inference
-      const parent: Parent & { items: Array<Middle & { subItems: Child[] }> } =
-        result[0];
+      const parent: Parent & { items: Array<Middle & { subItems: Child[] }> } = result[0];
       expect(parent.id).toBe(1);
       expect(parent.name).toBe("Parent1");
       expect(parent.items[0].id).toBe(10);
@@ -375,9 +368,7 @@ describe("attachChildrenWithFilter", () => {
         montoDescuento: string;
       };
 
-      const inscripciones: Inscripcion[] = [
-        { idInscripcion: 279, nombre: "ESME" },
-      ];
+      const inscripciones: Inscripcion[] = [{ idInscripcion: 279, nombre: "ESME" }];
 
       const cuotasPeriodo: CuotaPeriodo[] = [
         { idPeriodoCuota: 1, nombre: "P 1", monto: "34.00" },

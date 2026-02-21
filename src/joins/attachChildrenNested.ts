@@ -1,8 +1,5 @@
 import type { WithProperty } from "../types/index.js";
-import {
-  createNestedGroups,
-  getFromNestedGroups,
-} from "../utils/nestedGroup.js";
+import { createNestedGroups, getFromNestedGroups } from "../utils/nestedGroup.js";
 
 /**
  * Configuration for attaching children using nested composite keys.
@@ -12,7 +9,7 @@ export interface AttachChildrenNestedParams<
   TChild,
   ParentKeys extends ReadonlyArray<keyof TParent>,
   ChildKeys extends ReadonlyArray<keyof TChild>,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 > {
   /** Array of parent items */
   parents: readonly TParent[];
@@ -96,15 +93,9 @@ export function attachChildrenNested<
   TChild,
   ParentKeys extends ReadonlyArray<keyof TParent>,
   ChildKeys extends ReadonlyArray<keyof TChild>,
-  PropName extends PropertyKey
+  PropName extends PropertyKey,
 >(
-  params: AttachChildrenNestedParams<
-    TParent,
-    TChild,
-    ParentKeys,
-    ChildKeys,
-    PropName
-  >
+  params: AttachChildrenNestedParams<TParent, TChild, ParentKeys, ChildKeys, PropName>,
 ): Array<WithProperty<TParent, PropName, TChild[]>> {
   const { parents, children, parentKeys, childKeys, as } = params;
 

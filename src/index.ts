@@ -34,6 +34,21 @@ export {
   type JoinBySelectorsParams,
 } from "./joins/joinBySelectors.js";
 
+export { innerJoin, type InnerJoinParams } from "./joins/innerJoin.js";
+
+export {
+  attachChildrenWhere,
+  type AttachChildrenWhereParams,
+} from "./joins/attachChildrenWhere.js";
+
+export {
+  attachAggregate,
+  type AttachAggregateParams,
+} from "./joins/attachAggregate.js";
+
+// Fluent API
+export { from, JoinBuilder } from "./joins/JoinBuilder.js";
+
 // Composite key joins - Serialized approach
 export {
   attachChildrenComposite,
@@ -67,6 +82,8 @@ export {
   createNestedGroups,
   getFromNestedGroups,
 } from "./utils/nestedGroup.js";
+
+export { indexMany, indexOne } from "./utils/indexBy.js";
 
 // Type utilities
 export type {

@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   groupBy,
+  groupByComposite,
   groupByKey,
   groupByMany,
   groupByTransform,
@@ -152,7 +153,7 @@ describe("groupByTransform", () => {
     const totalByUser = groupByTransform(
       orders,
       (o) => o.userId,
-      (orders) => orders.reduce((sum, o) => sum + o.total, 0)
+      (orders) => orders.reduce((sum, o) => sum + o.total, 0),
     );
 
     expect(totalByUser).toEqual({
@@ -176,7 +177,7 @@ describe("groupByTransform", () => {
         count: items.length,
         avgPrice: items.reduce((sum, p) => sum + p.price, 0) / items.length,
         items: items.map((p) => p.name),
-      })
+      }),
     );
 
     expect(summaryByCategory).toEqual({
@@ -191,5 +192,40 @@ describe("groupByTransform", () => {
         items: ["Novel"],
       },
     });
+  });
+});
+
+describe("groupByComposite", () => {
+  it("should group by two-key composite", () => {
+    type Sale = { country: string; city: string; amount: number };
+    const sales: Sale[] = [
+      { country: "USA", city: "NYC", amount: 100 },
+      { country: "USA", city: "NYC", amount: 50 },
+      { country: "USA", city: "LA", amount: 200 },
+    ];
+
+    const grouped = groupByComposite(sales, ["country", "city"]);
+
+    expect(grouped["USA||~~||NYC"]).toHaveLength(2);
+    expect(grouped["USA||~~||LA"]).toHaveLength(1);
+  });
+
+  it("should handle empty array", () => {
+    type Item = { a: string; b: string };
+    const result = groupByComposite([] as Item[], ["a", "b"]);
+    expect(result).toEqual({});
+  });
+
+  it("should handle single key", () => {
+    const items = [
+      { code: "A", value: 1 },
+      { code: "A", value: 2 },
+      { code: "B", value: 3 },
+    ];
+
+    const grouped = groupByComposite(items, ["code"]);
+
+    expect(grouped.A).toHaveLength(2);
+    expect(grouped.B).toHaveLength(1);
   });
 });

@@ -1,4 +1,5 @@
 import type { WithProperty } from "../types/index.js";
+import { indexMany } from "../utils/indexBy.js";
 
 /**
  * Cardinality for relationships: "one" for single item, "many" for array
@@ -23,7 +24,7 @@ export interface AttachChildrenWithFilterParams<
   MiddlePropName extends PropertyKey,
   ChildPropName extends PropertyKey,
   MiddleCard extends Cardinality = "many",
-  ChildCard extends Cardinality = "many"
+  ChildCard extends Cardinality = "many",
 > {
   /** Array of parent items (top-level) */
   parents: readonly TParent[];
@@ -56,15 +57,13 @@ export interface AttachChildrenWithFilterParams<
 }
 
 // Helper types for cardinality resolution
-type CardinalityResult<T, Card extends Cardinality> = Card extends "one"
-  ? T | undefined
-  : T[];
+type CardinalityResult<T, Card extends Cardinality> = Card extends "one" ? T | undefined : T[];
 
 type MiddleWithChildren<
   TMiddle,
   ChildPropName extends PropertyKey,
   TChild,
-  ChildCard extends Cardinality
+  ChildCard extends Cardinality,
 > = WithProperty<TMiddle, ChildPropName, CardinalityResult<TChild, ChildCard>>;
 
 type ParentWithMiddleAndChildren<
@@ -74,14 +73,11 @@ type ParentWithMiddleAndChildren<
   ChildPropName extends PropertyKey,
   TChild,
   MiddleCard extends Cardinality,
-  ChildCard extends Cardinality
+  ChildCard extends Cardinality,
 > = WithProperty<
   TParent,
   MiddlePropName,
-  CardinalityResult<
-    MiddleWithChildren<TMiddle, ChildPropName, TChild, ChildCard>,
-    MiddleCard
-  >
+  CardinalityResult<MiddleWithChildren<TMiddle, ChildPropName, TChild, ChildCard>, MiddleCard>
 >;
 
 /**
@@ -185,7 +181,7 @@ export function attachChildrenWithFilter<
   MiddlePropName extends PropertyKey,
   ChildPropName extends PropertyKey,
   MiddleCard extends Cardinality = "many",
-  ChildCard extends Cardinality = "many"
+  ChildCard extends Cardinality = "many",
 >(
   params: AttachChildrenWithFilterParams<
     TParent,
@@ -199,7 +195,7 @@ export function attachChildrenWithFilter<
     ChildPropName,
     MiddleCard,
     ChildCard
-  >
+  >,
 ): Array<
   ParentWithMiddleAndChildren<
     TParent,
@@ -226,16 +222,7 @@ export function attachChildrenWithFilter<
   } = params;
 
   // Step 1: Create index of children by middleKey - O(c)
-  const childrenByMiddleKey = new Map<unknown, TChild[]>();
-  for (const child of children) {
-    const key = child[childKey];
-    const existing = childrenByMiddleKey.get(key);
-    if (existing) {
-      existing.push(child);
-    } else {
-      childrenByMiddleKey.set(key, [child]);
-    }
-  }
+  const childrenByMiddleKey = indexMany(children, (c) => c[childKey] as unknown);
 
   // Step 2: For each parent, create middle items with filtered children - O(p × m)
   return parents.map((parent) => {
@@ -248,14 +235,12 @@ export function attachChildrenWithFilter<
 
       // Filter children that belong to this parent
       const matchingChildren = allChildrenForMiddle.filter(
-        (child) => (child[childParentKey] as unknown) === parentKeyValue
+        (child) => (child[childParentKey] as unknown) === parentKeyValue,
       );
 
       // Apply child cardinality
       const childValue =
-        childCardinality === "one"
-          ? matchingChildren[0] ?? undefined
-          : matchingChildren;
+        childCardinality === "one" ? (matchingChildren[0] ?? undefined) : matchingChildren;
 
       return {
         ...mid,
@@ -265,9 +250,7 @@ export function attachChildrenWithFilter<
 
     // Apply middle cardinality
     const middleValue =
-      middleCardinality === "one"
-        ? middleWithChildren[0] ?? undefined
-        : middleWithChildren;
+      middleCardinality === "one" ? (middleWithChildren[0] ?? undefined) : middleWithChildren;
 
     return {
       ...parent,
