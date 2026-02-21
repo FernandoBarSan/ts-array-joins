@@ -49,3 +49,12 @@ export type CompositeKeyValue = string;
  * Helper to create a composite key selector function
  */
 export type CompositeKeySelector<T> = (item: T) => CompositeKeyValue;
+
+/**
+ * Recursive tree node type.
+ * Augments the original item type T with a children property
+ * containing an array of the same tree node type.
+ */
+export type TreeNode<T, ChildrenField extends PropertyKey = "children"> = T & {
+  [P in ChildrenField]: TreeNode<T, ChildrenField>[];
+};

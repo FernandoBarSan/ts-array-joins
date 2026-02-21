@@ -46,6 +46,12 @@ export {
   type AttachAggregateParams,
 } from "./joins/attachAggregate.js";
 
+// Tree transformation
+export {
+  arrayToTree,
+  type ArrayToTreeParams,
+} from "./joins/arrayToTree.js";
+
 // Fluent API
 export { from, JoinBuilder } from "./joins/JoinBuilder.js";
 
@@ -85,6 +91,13 @@ export {
 
 export { indexMany, indexOne } from "./utils/indexBy.js";
 
+export {
+  sortBy,
+  comparatorBy,
+  type SortCriterion,
+  type SortKey,
+} from "./utils/sortBy.js";
+
 // Type utilities
 export type {
   ArrayElement,
@@ -95,4 +108,5 @@ export type {
   CompositeKey,
   CompositeKeyValue,
   CompositeKeySelector,
+  TreeNode,
 } from "./types/index.js";

@@ -29,6 +29,11 @@ A modern, zero-dependency library for grouping arrays and performing SQL-like jo
 - 🔑 **Composite Keys**: Joins con claves compuestas (múltiples propiedades)
 - 🔗 **Three-Level Joins**: Join de 3 niveles con patrón catálogo (`attachChildrenWithFilter`)
 - 🎛️ **Cardinality Control**: Controla si quieres arrays o elementos únicos (`"one"` o `"many"`)
+- 🔄 **Inner Join**: Excluye padres sin hijos (`innerJoin`)
+- 🔍 **Filter Predicates**: Filtra hijos con predicado personalizado (`attachChildrenWhere`)
+- 📊 **Aggregation**: Computa valores agregados de hijos (`attachAggregate`)
+- ⛓️ **Fluent API**: Encadena múltiples joins con `from().attachChildren().build()`
+- 🌳 **Array to Tree**: Convierte arrays planos a árboles en O(n) (`arrayToTree`)
 
 ## 📦 Instalación
 
@@ -366,6 +371,150 @@ const result4 = attachChildrenWithFilter({
 - 📦 **Órdenes → Items disponibles → Items de la orden**
 - 🏥 **Pacientes → Tratamientos (catálogo) → Citas del paciente**
 
+#### `innerJoin(params)` - Inner Join
+
+**🆕 Nuevo en v1.2.0**
+
+Solo retorna padres que tienen al menos un hijo que haga match. Los padres sin hijos se excluyen del resultado (equivalente a SQL INNER JOIN).
+
+```typescript
+type User = { id: number; name: string };
+type Order = { id: number; userId: number; total: number };
+
+const users: User[] = [
+  { id: 1, name: "Ana" },
+  { id: 2, name: "Juan" },
+  { id: 3, name: "Luis" }, // sin órdenes
+];
+
+const orders: Order[] = [
+  { id: 101, userId: 1, total: 50 },
+  { id: 102, userId: 2, total: 75 },
+];
+
+const result = innerJoin({
+  parents: users,
+  children: orders,
+  parentKey: "id",
+  childKey: "userId",
+  as: "orders",
+});
+
+// Result: solo Ana y Juan (Luis excluido - sin órdenes)
+// Array<User & { orders: Order[] }>
+// [
+//   { id: 1, name: "Ana", orders: [{ id: 101, userId: 1, total: 50 }] },
+//   { id: 2, name: "Juan", orders: [{ id: 102, userId: 2, total: 75 }] }
+// ]
+```
+
+**Diferencia con `attachChildren`:**
+
+| Función          | Padres sin hijos  | Equivalente SQL |
+| ---------------- | ----------------- | --------------- |
+| `attachChildren` | Incluidos (`[]`)  | LEFT JOIN       |
+| `innerJoin`      | **Excluidos**     | INNER JOIN      |
+
+#### `attachChildrenWhere(params)` - Join con Filtro
+
+**🆕 Nuevo en v1.2.0**
+
+Adjunta hijos filtrados con un predicado personalizado. Primero hace match por key (O(n+m)), luego filtra con el predicado.
+
+```typescript
+type User = { id: number; name: string; minAmount: number };
+type Order = { id: number; userId: number; total: number; status: string };
+
+const users: User[] = [
+  { id: 1, name: "Ana", minAmount: 60 },
+  { id: 2, name: "Juan", minAmount: 0 },
+];
+
+const orders: Order[] = [
+  { id: 101, userId: 1, total: 50, status: "active" },
+  { id: 102, userId: 1, total: 100, status: "active" },
+  { id: 103, userId: 1, total: 200, status: "cancelled" },
+  { id: 104, userId: 2, total: 75, status: "active" },
+];
+
+const result = attachChildrenWhere({
+  parents: users,
+  children: orders,
+  parentKey: "id",
+  childKey: "userId",
+  as: "activeOrders",
+  where: (order, user) => order.status === "active" && order.total > user.minAmount,
+});
+
+// Ana solo obtiene la orden 102 (activa y > 60)
+// Juan obtiene la orden 104 (activa y > 0)
+// Array<User & { activeOrders: Order[] }>
+```
+
+**Características:**
+
+- El predicado `where` recibe `(child, parent)` — permite filtrar según datos del padre
+- Se combina con indexación por key para máxima eficiencia
+- Padres sin match obtienen array vacío `[]`
+
+#### `attachAggregate(params)` - Valor Agregado
+
+**🆕 Nuevo en v1.2.0**
+
+En vez de adjuntar un array de hijos, computa un valor agregado. Útil para counts, sums, averages, min/max, o cualquier agregación personalizada.
+
+```typescript
+type User = { id: number; name: string };
+type Order = { id: number; userId: number; total: number };
+
+const result = attachAggregate({
+  parents: users,
+  children: orders,
+  parentKey: "id",
+  childKey: "userId",
+  as: "orderTotal",
+  aggregate: (orders) => orders.reduce((sum, o) => sum + o.total, 0),
+});
+// Array<User & { orderTotal: number }>
+// [
+//   { id: 1, name: "Ana", orderTotal: 150 },
+//   { id: 2, name: "Juan", orderTotal: 75 }
+// ]
+```
+
+**Más ejemplos de agregaciones:**
+
+```typescript
+// Contar hijos
+attachAggregate({
+  ...params,
+  as: "orderCount",
+  aggregate: (orders) => orders.length,
+});
+// Array<User & { orderCount: number }>
+
+// Promedio
+attachAggregate({
+  ...params,
+  as: "avgTotal",
+  aggregate: (orders) => orders.length > 0
+    ? orders.reduce((s, o) => s + o.total, 0) / orders.length
+    : 0,
+});
+
+// Objeto resumen
+attachAggregate({
+  ...params,
+  as: "summary",
+  aggregate: (orders) => ({
+    count: orders.length,
+    total: orders.reduce((s, o) => s + o.total, 0),
+    max: Math.max(0, ...orders.map((o) => o.total)),
+  }),
+});
+// Array<User & { summary: { count: number; total: number; max: number } }>
+```
+
 ## 🔑 Claves Compuestas (Composite Keys)
 
 Cuando tus relaciones se definen por múltiples propiedades (ej: SKU + Origen), la librería ofrece **dos estrategias**:
@@ -525,6 +674,207 @@ const enriched = attachChildNested({
 // }>
 ```
 
+## 🔀 Ordenamiento (sortBy)
+
+**🆕 Nuevo en v1.2.0**
+
+Utilidad de ordenamiento type-safe. Retorna una copia ordenada sin mutar el original.
+
+```typescript
+import { sortBy, comparatorBy } from "ts-array-joins";
+
+type User = { id: number; name: string; age: number };
+
+const users: User[] = [
+  { id: 3, name: "Carlos", age: 30 },
+  { id: 1, name: "Ana", age: 25 },
+  { id: 2, name: "Bruno", age: 35 },
+  { id: 4, name: "Ana", age: 20 },
+];
+
+// Ascendente por nombre
+sortBy(users, "name");
+// [Ana(25), Ana(20), Bruno, Carlos]
+
+// Descendente con prefijo -
+sortBy(users, "-age");
+// [Bruno(35), Carlos(30), Ana(25), Ana(20)]
+
+// Múltiples criterios: nombre asc, luego edad desc
+sortBy(users, "name", "-age");
+// [Ana(25), Ana(20), Bruno(35), Carlos(30)]
+
+// Objeto con opciones explícitas
+sortBy(users, { key: "name", order: "desc", caseInsensitive: true });
+
+// Mezcla de string y objeto
+sortBy(users, { key: "name", caseInsensitive: true }, "-age");
+```
+
+**Comparador para `.sort()` nativo:**
+
+```typescript
+// comparatorBy retorna una función (a, b) => number
+users.sort(comparatorBy("name", "-age"));
+users.sort(comparatorBy<User>({ key: "name", caseInsensitive: true }));
+```
+
+**Características:**
+
+- **Type-safe**: Valida nombres de propiedad con `keyof T` en compilación
+- **Inmutable**: `sortBy` retorna copia nueva, no muta el original
+- **Múltiples criterios**: Soporta ordenamiento primario, secundario, etc.
+- **Strings**: Usa `localeCompare` para comparación correcta de strings
+- **Nulls**: Valores `null`/`undefined` siempre van al final
+- **Case-insensitive**: Opción `caseInsensitive` para strings
+- **Prefijo `-`**: Convención simple para orden descendente
+
+## ⛓️ API Fluent (JoinBuilder)
+
+**🆕 Nuevo en v1.2.0**
+
+Encadena múltiples joins de forma legible usando el patrón builder. Cada método retorna un nuevo builder con el tipo acumulado.
+
+```typescript
+import { from } from "ts-array-joins";
+
+type User = { id: number; name: string };
+type Order = { id: number; userId: number; total: number };
+type Address = { id: number; userId: number; city: string };
+
+const result = from(users)
+  .attachChildren({
+    children: orders,
+    parentKey: "id",
+    childKey: "userId",
+    as: "orders",
+  })
+  .attachChild({
+    children: addresses,
+    parentKey: "id",
+    childKey: "userId",
+    as: "address",
+  })
+  .attachAggregate({
+    children: orders,
+    parentKey: "id",
+    childKey: "userId",
+    as: "totalSpent",
+    aggregate: (o) => o.reduce((s, x) => s + x.total, 0),
+  })
+  .build();
+
+// Type: Array<User & { orders: Order[]; address: Address | null; totalSpent: number }>
+```
+
+**Métodos disponibles:**
+
+| Método             | Descripción                          | Tipo del valor          |
+| ------------------ | ------------------------------------ | ----------------------- |
+| `attachChildren`   | Join one-to-many                     | `TChild[]`              |
+| `attachChild`      | Join one-to-one                      | `TChild \| null`        |
+| `attachAggregate`  | Valor agregado de hijos              | `TResult`               |
+| `where`            | Filtra items con predicado           | mismo tipo              |
+| `build`            | Ejecuta la cadena y retorna el array | `T[]`                   |
+
+**Ejemplo con filtro:**
+
+```typescript
+const activeUsersWithOrders = from(users)
+  .attachChildren({
+    children: orders,
+    parentKey: "id",
+    childKey: "userId",
+    as: "orders",
+  })
+  .where((user) => user.orders.length > 0) // Solo usuarios con órdenes
+  .build();
+```
+
+## 🌳 Array to Tree
+
+**🆕 Nuevo en v1.2.0**
+
+Convierte un array plano con relaciones `id`/`parentId` en una estructura de árbol en O(n). Inspirado en `performant-array-to-tree` pero con tipado fuerte de TypeScript.
+
+```typescript
+import { arrayToTree } from "ts-array-joins";
+
+type Employee = { id: number; managerId: number | null; name: string };
+
+const employees: Employee[] = [
+  { id: 1, managerId: null, name: "CEO" },
+  { id: 2, managerId: 1, name: "CTO" },
+  { id: 3, managerId: 1, name: "CFO" },
+  { id: 4, managerId: 2, name: "Dev Lead" },
+  { id: 5, managerId: 4, name: "Developer" },
+];
+
+const tree = arrayToTree({
+  items: employees,
+  idKey: "id",
+  parentIdKey: "managerId",
+});
+
+// Type: TreeNode<Employee, "children">[]
+// [
+//   {
+//     id: 1, managerId: null, name: "CEO",
+//     children: [
+//       {
+//         id: 2, managerId: 1, name: "CTO",
+//         children: [
+//           {
+//             id: 4, managerId: 2, name: "Dev Lead",
+//             children: [
+//               { id: 5, managerId: 4, name: "Developer", children: [] }
+//             ]
+//           }
+//         ]
+//       },
+//       { id: 3, managerId: 1, name: "CFO", children: [] }
+//     ]
+//   }
+// ]
+```
+
+**Opciones de configuración:**
+
+```typescript
+// Nombre personalizado para la propiedad de hijos
+const tree = arrayToTree({
+  items: employees,
+  idKey: "id",
+  parentIdKey: "managerId",
+  childrenField: "subordinates" as const,
+});
+// tree[0].subordinates[0].subordinates... ← fully typed!
+
+// IDs raíz personalizados (por defecto: null, undefined, "")
+const tree2 = arrayToTree({
+  items: departments,
+  idKey: "id",
+  parentIdKey: "parentDeptId",
+  rootParentIds: [0, -1], // Tratar 0 y -1 como raíz
+});
+
+// Detección de huérfanos
+const tree3 = arrayToTree({
+  items: employees,
+  idKey: "id",
+  parentIdKey: "managerId",
+  throwIfOrphans: true, // Lanza error si hay nodos sin padre válido
+});
+```
+
+**Características:**
+
+- **O(n)**: Una sola pasada para construir el árbol
+- **Type-safe**: `TreeNode<T, ChildrenField>` preserva el tipo original + propiedad de hijos recursiva
+- **Inmutable**: No muta el array original
+- **Flexible**: Configurable `childrenField`, `rootParentIds`, y `throwIfOrphans`
+- **Hojas**: Nodos sin hijos obtienen array vacío `[]`
+
 ## 🎨 Uso Avanzado
 
 ### Composición de Múltiples Joins
@@ -653,15 +1003,20 @@ const productsWithInventory = attachChildrenNested({
 
 ### Comparativa Detallada
 
-| Función                    | Niveles | Catálogo Compartido | Cardinalidad | Claves Compuestas |
-| -------------------------- | ------- | ------------------- | ------------ | ----------------- |
-| `attachChildren`           | 2       | ❌                  | many         | ❌                |
-| `attachChild`              | 2       | ❌                  | one          | ❌                |
-| `attachChildrenWithFilter` | 3       | ✅                  | configurable | ❌                |
-| `attachChildrenNested`     | 2       | ❌                  | many         | ✅                |
-| `attachChildNested`        | 2       | ❌                  | one          | ✅                |
-| `attachChildrenComposite`  | 2       | ❌                  | many         | ✅                |
-| `attachChildComposite`     | 2       | ❌                  | one          | ✅                |
+| Función                    | Niveles | Cardinalidad | Filtro | Claves Compuestas | Descripción                  |
+| -------------------------- | ------- | ------------ | ------ | ----------------- | ---------------------------- |
+| `attachChildren`           | 2       | many         | ❌     | ❌                | LEFT JOIN one-to-many        |
+| `attachChild`              | 2       | one          | ❌     | ❌                | LEFT JOIN one-to-one         |
+| `innerJoin`                | 2       | many         | ❌     | ❌                | INNER JOIN (excluye sin match) |
+| `attachChildrenWhere`      | 2       | many         | ✅     | ❌                | JOIN con predicado           |
+| `attachAggregate`          | 2       | agregado     | ❌     | ❌                | Valor computado de hijos     |
+| `attachChildrenWithFilter` | 3       | configurable | ✅     | ❌                | Patrón catálogo              |
+| `attachChildrenNested`     | 2       | many         | ❌     | ✅                | Composite key (anidada)      |
+| `attachChildNested`        | 2       | one          | ❌     | ✅                | Composite key (anidada)      |
+| `attachChildrenComposite`  | 2       | many         | ❌     | ✅                | Composite key (serializada)  |
+| `attachChildComposite`     | 2       | one          | ❌     | ✅                | Composite key (serializada)  |
+| `arrayToTree`              | N       | tree         | ❌     | ❌                | Array plano → árbol O(n)     |
+| `from` / `JoinBuilder`     | 2       | any          | ✅     | ❌                | API fluent/chainable         |
 
 ### Casos de Uso Típicos
 
