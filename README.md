@@ -34,6 +34,15 @@ A modern, zero-dependency library for grouping arrays and performing SQL-like jo
 - 📊 **Aggregation**: Computa valores agregados de hijos (`attachAggregate`)
 - ⛓️ **Fluent API**: Encadena múltiples joins con `from().attachChildren().build()`
 - 🌳 **Array to Tree**: Convierte arrays planos a árboles en O(n) (`arrayToTree`)
+- 🌲 **Tree to Array**: Aplana árboles de vuelta a arrays (`treeToArray`)
+- 🔄 **Full Outer Join**: Incluye items sin match de ambos lados (`fullOuterJoin`)
+- ✖️ **Cross Join**: Producto cartesiano de dos arrays (`crossJoin`, `crossJoinMerge`)
+- 🦥 **Lazy Builder**: Evaluación diferida con pipeline fluent (`lazy`)
+- 📦 **Set Operations**: diff, intersect, except por key
+- 🔑 **Lookup Utilities**: `uniqueBy`, `keyBy`, `flatMapChildren`
+- ✂️ **Array Splitting**: `chunk`, `partition`
+- 🗺️ **Record Transform**: `mapValues`, `pick`, `omit`
+- ⚡ **Index Cache**: Cache de índices Map con `IndexCache`
 
 ## 📦 Instalación
 
@@ -875,6 +884,305 @@ const tree3 = arrayToTree({
 - **Flexible**: Configurable `childrenField`, `rootParentIds`, y `throwIfOrphans`
 - **Hojas**: Nodos sin hijos obtienen array vacío `[]`
 
+## 🔄 Full Outer Join
+
+**🆕 Nuevo en v1.4.0**
+
+Retorna todos los items de ambos arrays, haciendo match donde sea posible. Items sin match aparecen con `null` en el otro lado (equivalente a SQL FULL OUTER JOIN).
+
+```typescript
+import { fullOuterJoin } from "ts-array-joins";
+
+type User = { id: number; name: string };
+type Order = { orderId: number; userId: number; total: number };
+
+const users: User[] = [
+  { id: 1, name: "Ana" },
+  { id: 2, name: "Juan" },
+  { id: 3, name: "Luis" },
+];
+
+const orders: Order[] = [
+  { orderId: 101, userId: 1, total: 50 },
+  { orderId: 102, userId: 99, total: 200 }, // usuario no existe
+];
+
+const result = fullOuterJoin({
+  left: users,
+  right: orders,
+  leftKey: "id",
+  rightKey: "userId",
+});
+
+// [
+//   { left: { id: 1, name: "Ana" }, right: { orderId: 101, userId: 1, total: 50 } },
+//   { left: { id: 2, name: "Juan" }, right: null },       // sin órdenes
+//   { left: { id: 3, name: "Luis" }, right: null },       // sin órdenes
+//   { left: null, right: { orderId: 102, userId: 99, ... } }, // orden huérfana
+// ]
+```
+
+## ✖️ Cross Join (Producto Cartesiano)
+
+**🆕 Nuevo en v1.4.0**
+
+Combina cada item del array izquierdo con cada item del derecho.
+
+```typescript
+import { crossJoin, crossJoinMerge } from "ts-array-joins";
+
+const sizes = [{ size: "S" }, { size: "M" }];
+const colors = [{ color: "red" }, { color: "blue" }];
+
+// crossJoin: retorna { left, right } pairs
+const pairs = crossJoin(sizes, colors);
+// [
+//   { left: { size: "S" }, right: { color: "red" } },
+//   { left: { size: "S" }, right: { color: "blue" } },
+//   { left: { size: "M" }, right: { color: "red" } },
+//   { left: { size: "M" }, right: { color: "blue" } },
+// ]
+
+// crossJoinMerge: fusiona en un solo objeto
+const combos = crossJoinMerge(sizes, colors);
+// [
+//   { size: "S", color: "red" },
+//   { size: "S", color: "blue" },
+//   { size: "M", color: "red" },
+//   { size: "M", color: "blue" },
+// ]
+```
+
+## 🦥 Lazy Builder (Evaluación Diferida)
+
+**🆕 Nuevo en v1.4.0**
+
+Construye un pipeline de operaciones que se ejecutan solo al llamar `.run()`. Útil para componer múltiples transformaciones de forma legible.
+
+```typescript
+import { lazy } from "ts-array-joins";
+
+type User = { id: number; name: string; active: boolean };
+type Order = { orderId: number; userId: number; total: number };
+
+const result = lazy(users)
+  .filter((u) => u.active)
+  .attachChildren({
+    children: orders,
+    parentKey: "id",
+    childKey: "userId",
+    as: "orders",
+  })
+  .filter((u) => u.orders.length > 0)
+  .sortBy("name")
+  .take(10)
+  .run();
+```
+
+**Métodos disponibles:**
+
+| Método           | Descripción                        |
+| ---------------- | ---------------------------------- |
+| `filter`         | Filtra items con predicado         |
+| `map`            | Transforma cada item               |
+| `sortBy`         | Ordena por propiedades             |
+| `take(n)`        | Toma los primeros N items          |
+| `skip(n)`        | Salta los primeros N items         |
+| `attachChildren` | Join one-to-many diferido          |
+| `run()`          | Ejecuta el pipeline y retorna `T[]`|
+
+## 📦 Operaciones de Conjuntos
+
+**🆕 Nuevo en v1.4.0**
+
+Operaciones de conjuntos basadas en key con complejidad O(n + m).
+
+```typescript
+import { diff, intersect, except } from "ts-array-joins";
+
+type User = { id: number; name: string };
+
+const oldUsers: User[] = [
+  { id: 1, name: "Ana" },
+  { id: 2, name: "Juan" },
+  { id: 3, name: "Luis" },
+];
+
+const newUsers: User[] = [
+  { id: 2, name: "Juan" },
+  { id: 3, name: "Luis" },
+  { id: 4, name: "Maria" },
+];
+
+// Items en newUsers que no existen en oldUsers
+const added = diff(newUsers, oldUsers, "id");
+// [{ id: 4, name: "Maria" }]
+
+// Items que existen en ambos arrays
+const common = intersect(oldUsers, newUsers, "id");
+// [{ id: 2, name: "Juan" }, { id: 3, name: "Luis" }]
+
+// Alias de diff con semántica "excluir estos"
+const removed = except(oldUsers, newUsers, "id");
+// [{ id: 1, name: "Ana" }]
+```
+
+## 🔑 Utilidades de Array
+
+**🆕 Nuevo en v1.4.0**
+
+### `uniqueBy(items, key)` — Deduplicar
+
+Elimina duplicados por key, manteniendo la primera ocurrencia.
+
+```typescript
+import { uniqueBy } from "ts-array-joins";
+
+const users = [
+  { id: 1, name: "Ana" },
+  { id: 2, name: "Juan" },
+  { id: 1, name: "Ana Duplicada" },
+];
+
+const unique = uniqueBy(users, "id");
+// [{ id: 1, name: "Ana" }, { id: 2, name: "Juan" }]
+```
+
+### `keyBy(items, key)` — Crear lookup
+
+Crea un `Record<key, item>` para lookups O(1).
+
+```typescript
+import { keyBy } from "ts-array-joins";
+
+const usersById = keyBy(users, "id");
+// { 1: { id: 1, name: "Ana" }, 2: { id: 2, name: "Juan" } }
+
+const ana = usersById[1]; // acceso O(1)
+```
+
+### `treeToArray(tree, childrenField)` — Aplanar árbol
+
+Inverso de `arrayToTree`. Convierte un árbol de vuelta a array plano (depth-first).
+
+```typescript
+import { treeToArray } from "ts-array-joins";
+
+const flat = treeToArray(tree, "children");
+// [{ id: 1, name: "CEO" }, { id: 2, name: "CTO" }, { id: 4, name: "Dev Lead" }, ...]
+// La propiedad "children" se elimina de cada item
+```
+
+### `flatMapChildren(items, childrenKey)` — Desnormalizar
+
+Convierte datos parent-children en filas planas (como un SQL JOIN denormalizado).
+
+```typescript
+import { flatMapChildren } from "ts-array-joins";
+
+const usersWithOrders = [
+  {
+    id: 1,
+    name: "Ana",
+    orders: [
+      { orderId: 101, total: 50 },
+      { orderId: 102, total: 100 },
+    ],
+  },
+  { id: 2, name: "Juan", orders: [{ orderId: 103, total: 75 }] },
+];
+
+const rows = flatMapChildren(usersWithOrders, "orders");
+// [
+//   { id: 1, name: "Ana", orderId: 101, total: 50 },
+//   { id: 1, name: "Ana", orderId: 102, total: 100 },
+//   { id: 2, name: "Juan", orderId: 103, total: 75 },
+// ]
+```
+
+### `chunk(items, size)` — Dividir en grupos
+
+Divide un array en chunks del tamaño especificado.
+
+```typescript
+import { chunk } from "ts-array-joins";
+
+chunk([1, 2, 3, 4, 5], 2);
+// [[1, 2], [3, 4], [5]]
+```
+
+### `partition(items, predicate)` — Dividir por condición
+
+Divide un array en dos grupos: los que cumplen el predicado y los que no.
+
+```typescript
+import { partition } from "ts-array-joins";
+
+const [active, inactive] = partition(users, (u) => u.active);
+```
+
+### `mapValues(record, transform)` — Transformar valores de Record
+
+Transforma los valores de un record preservando las keys. Ideal para post-procesar resultados de `groupByKey`.
+
+```typescript
+import { mapValues, groupByKey } from "ts-array-joins";
+
+const grouped = groupByKey(users, "role");
+// { admin: User[], user: User[] }
+
+const counts = mapValues(grouped, (users) => users.length);
+// { admin: 3, user: 15 }
+
+const names = mapValues(grouped, (users) => users.map((u) => u.name));
+// { admin: ["Ana", "Bob"], user: ["Carol", ...] }
+```
+
+### `pick(items, keys)` / `omit(items, keys)` — Seleccionar propiedades
+
+```typescript
+import { pick, omit } from "ts-array-joins";
+
+const users = [
+  { id: 1, name: "Ana", email: "ana@test.com", password: "secret" },
+  { id: 2, name: "Juan", email: "juan@test.com", password: "hidden" },
+];
+
+// Mantener solo las propiedades especificadas
+const clean = pick(users, ["id", "name"]);
+// [{ id: 1, name: "Ana" }, { id: 2, name: "Juan" }]
+
+// Eliminar propiedades sensibles
+const safe = omit(users, ["password"]);
+// [{ id: 1, name: "Ana", email: "ana@test.com" }, ...]
+```
+
+## ⚡ IndexCache — Cache de Índices
+
+**🆕 Nuevo en v1.4.0**
+
+Cache para índices Map pre-construidos. Evita reconstruir el índice cuando se usa la misma combinación array + key múltiples veces.
+
+```typescript
+import { IndexCache } from "ts-array-joins";
+
+const cache = new IndexCache();
+
+// Primera llamada construye el índice, las siguientes lo reusan
+const ordersByUserId = cache.indexMany(orders, "userId");
+const ordersByUserId2 = cache.indexMany(orders, "userId"); // cache hit
+
+// indexOne: lookup one-to-one
+const userById = cache.indexOne(users, "id");
+const ana = userById.get(1); // O(1)
+```
+
+**Características:**
+
+- **WeakMap-based**: Los índices se liberan automáticamente cuando el array se deja de referenciar
+- **indexMany**: Retorna `Map<key, T[]>` (one-to-many, como groupBy)
+- **indexOne**: Retorna `Map<key, T>` (one-to-one, como keyBy)
+
 ## 🎨 Uso Avanzado
 
 ### Composición de Múltiples Joins
@@ -1016,7 +1324,11 @@ const productsWithInventory = attachChildrenNested({
 | `attachChildrenComposite`  | 2       | many         | ❌     | ✅                | Composite key (serializada)  |
 | `attachChildComposite`     | 2       | one          | ❌     | ✅                | Composite key (serializada)  |
 | `arrayToTree`              | N       | tree         | ❌     | ❌                | Array plano → árbol O(n)     |
+| `treeToArray`              | N       | flat         | ❌     | ❌                | Árbol → array plano          |
+| `fullOuterJoin`            | 2       | paired       | ❌     | ❌                | FULL OUTER JOIN              |
+| `crossJoin`                | 2       | n×m          | ❌     | ❌                | Producto cartesiano          |
 | `from` / `JoinBuilder`     | 2       | any          | ✅     | ❌                | API fluent/chainable         |
+| `lazy` / `LazyBuilder`     | 2       | deferred     | ✅     | ❌                | Pipeline diferido            |
 
 ### Casos de Uso Típicos
 
