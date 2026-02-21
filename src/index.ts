@@ -52,8 +52,21 @@ export {
   type ArrayToTreeParams,
 } from "./joins/arrayToTree.js";
 
+// Full outer join
+export {
+  fullOuterJoin,
+  type FullOuterJoinParams,
+  type FullOuterJoinRow,
+} from "./joins/fullOuterJoin.js";
+
+// Cross join (Cartesian product)
+export { crossJoin, crossJoinMerge } from "./joins/crossJoin.js";
+
 // Fluent API
 export { from, JoinBuilder } from "./joins/JoinBuilder.js";
+
+// Lazy builder (deferred evaluation)
+export { lazy, LazyBuilder } from "./joins/LazyBuilder.js";
 
 // Composite key joins - Serialized approach
 export {
@@ -97,6 +110,19 @@ export {
   type SortCriterion,
   type SortKey,
 } from "./utils/sortBy.js";
+
+// Array utilities
+export { uniqueBy } from "./utils/uniqueBy.js";
+export { keyBy } from "./utils/keyBy.js";
+export { treeToArray } from "./utils/treeToArray.js";
+export { diff, intersect, except } from "./utils/setOperations.js";
+export { flatMapChildren } from "./utils/flatMapChildren.js";
+export { chunk, partition } from "./utils/chunk.js";
+export { mapValues } from "./utils/mapValues.js";
+export { pick, omit } from "./utils/pickOmit.js";
+
+// Performance
+export { IndexCache } from "./utils/IndexCache.js";
 
 // Type utilities
 export type {
